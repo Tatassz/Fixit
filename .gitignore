@@ -21,6 +21,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Build outputs
+node_modules
 dist
 dist-ssr
 *.local
@@ -38,4 +39,6 @@ dist-ssr
 Thumbs.db
 
 # Deployment
+.vercel
+
 .vercel
