@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap");
+
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
@@ -46,6 +48,8 @@
 }
 
 :root {
+  --font-heading: "Sora", "Segoe UI", sans-serif;
+  --font-body: "Plus Jakarta Sans", "Segoe UI", sans-serif;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -120,5 +124,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    background: radial-gradient(circle at 20% 20%, #f5f9ff 0%, #ffffff 45%),
+      radial-gradient(circle at 80% 0%, #eef7ff 0%, #ffffff 35%);
+    min-height: 100vh;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
   }
 }

@@ -8,7 +8,7 @@ export interface Order {
   problem_description: string;
   device_photo?: string; // URL or Base64
   address: string;
-  status: "waiting" | "on_progress" | "completed" | "cancelled";
+  status: "waiting" | "on_progress" | "completed" | "cancelled" | "returned";
   technician_id?: number;
   technician_name?: string;
   technician_phone?: string;
@@ -28,7 +28,7 @@ export interface CreateOrderData {
 }
 
 export interface UpdateOrderStatusData {
-  status: "waiting" | "on_progress" | "completed" | "cancelled";
+  status: "waiting" | "on_progress" | "completed" | "cancelled" | "returned";
   technician_id?: number;
   technician_name?: string;
   technician_phone?: string;

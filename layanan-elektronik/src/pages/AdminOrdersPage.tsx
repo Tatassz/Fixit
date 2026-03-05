@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { orderService, paymentService } from "@/services";
+import { afterSalesService, orderService, paymentService } from "@/services";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -38,11 +39,19 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  ShieldCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { formatCurrency } from "@/lib/utils";
-import type { Order, UpdateOrderStatusData, Payment } from "@/types";
+import type {
+  Order,
+  UpdateOrderStatusData,
+  Payment,
+  OrderWarranty,
+  WarrantyClaim,
+  WarrantyClaimStatus,
+} from "@/types";
 import { toast } from "sonner";
 
 interface OrderWithPayment extends Order {
@@ -60,6 +69,15 @@ export default function AdminOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [warrantyInfo, setWarrantyInfo] = useState<OrderWarranty | null>(null);
+  const [warrantyForm, setWarrantyForm] = useState({
+    duration_days: 30,
+    description:
+      "Garansi service 30 hari sejak dinyatakan selesai. Klaim wajib menyertakan foto dan deskripsi kendala.",
+  });
+  const [claims, setClaims] = useState<WarrantyClaim[]>([]);
+  const [claimNotes, setClaimNotes] = useState<Record<string, string>>({});
+  const [updatingClaimId, setUpdatingClaimId] = useState<string | null>(null);
 
   const [editForm, setEditForm] = useState<UpdateOrderStatusData>({
     status: "waiting",
@@ -122,6 +140,26 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const hydrateAfterSalesData = (order: OrderWithPayment) => {
+    const existingWarranty = afterSalesService.getWarrantyByOrder(order.order_id);
+    setWarrantyInfo(existingWarranty);
+    setWarrantyForm({
+      duration_days: existingWarranty?.duration_days ?? 30,
+      description:
+        existingWarranty?.description ||
+        "Garansi service 30 hari sejak dinyatakan selesai. Klaim wajib menyertakan foto dan deskripsi kendala.",
+    });
+
+    const orderClaims = afterSalesService.getClaimsByOrder(order.order_id);
+    setClaims(orderClaims);
+
+    const noteMap = orderClaims.reduce<Record<string, string>>((acc, claim) => {
+      acc[claim.claim_id] = claim.admin_note || "";
+      return acc;
+    }, {});
+    setClaimNotes(noteMap);
+  };
+
   const handleEditClick = async (order: OrderWithPayment) => {
     setSelectedOrder(order);
     setEditForm({
@@ -131,17 +169,34 @@ export default function AdminOrdersPage() {
       cost_estimation: order.cost_estimation || 0,
       final_cost: order.final_cost || 0,
     });
+    hydrateAfterSalesData(order);
     setIsDialogOpen(true);
   };
 
   const handleUpdate = async () => {
     if (!selectedOrder) return;
 
+    if (editForm.status === "completed" && !warrantyForm.description.trim()) {
+      toast.error("Deskripsi garansi wajib diisi untuk status selesai");
+      return;
+    }
+
     try {
       await orderService.updateStatus(
         selectedOrder.order_id.toString(),
         editForm,
       );
+
+      if (editForm.status === "completed") {
+        const savedWarranty = afterSalesService.upsertWarranty({
+          order_id: selectedOrder.order_id,
+          user_id: selectedOrder.user_id,
+          duration_days: warrantyForm.duration_days,
+          description: warrantyForm.description.trim(),
+        });
+        setWarrantyInfo(savedWarranty);
+      }
+
       toast.success("Status pesanan berhasil diperbarui");
       setIsDialogOpen(false);
       loadOrders(); // Refresh data
@@ -165,6 +220,33 @@ export default function AdminOrdersPage() {
       toast.error("Gagal mengkonfirmasi pembayaran");
     } finally {
       setConfirmingPayment(false);
+    }
+  };
+
+  const handleUpdateClaimStatus = (
+    claimId: string,
+    status: WarrantyClaimStatus,
+  ) => {
+    setUpdatingClaimId(claimId);
+
+    try {
+      const updatedClaim = afterSalesService.updateClaimStatus(
+        claimId,
+        status,
+        claimNotes[claimId],
+      );
+
+      setClaims((prevClaims) =>
+        prevClaims.map((claim) =>
+          claim.claim_id === claimId ? updatedClaim : claim,
+        ),
+      );
+      toast.success("Status klaim garansi berhasil diperbarui");
+    } catch (error) {
+      console.error("Failed to update claim status:", error);
+      toast.error("Gagal memperbarui status klaim");
+    } finally {
+      setUpdatingClaimId(null);
     }
   };
 
@@ -235,6 +317,7 @@ export default function AdminOrdersPage() {
     { value: "waiting", label: "Menunggu" },
     { value: "on_progress", label: "Diproses" },
     { value: "completed", label: "Selesai" },
+    { value: "returned", label: "Return" },
     { value: "cancelled", label: "Dibatalkan" },
   ];
 
@@ -243,6 +326,17 @@ export default function AdminOrdersPage() {
     { value: "none", label: "Belum Dibayar" },
     { value: "pending", label: "Pending" },
     { value: "paid", label: "Terbayar" },
+  ];
+
+  const claimStatusOptions: Array<{
+    value: WarrantyClaimStatus;
+    label: string;
+  }> = [
+    { value: "submitted", label: "Klaim Masuk" },
+    { value: "in_review", label: "Ditinjau" },
+    { value: "approved", label: "Disetujui" },
+    { value: "rejected", label: "Ditolak" },
+    { value: "resolved", label: "Selesai" },
   ];
 
   if (loading) {
@@ -517,8 +611,8 @@ export default function AdminOrdersPage() {
           <DialogHeader>
             <DialogTitle>Update Pesanan #{selectedOrder?.order_id}</DialogTitle>
             <DialogDescription>
-              Perbarui status perbaikan, teknisi, biaya, dan konfirmasi
-              pembayaran.
+              Perbarui status perbaikan, teknisi, biaya, garansi, dan
+              konfirmasi pembayaran.
             </DialogDescription>
           </DialogHeader>
 
@@ -546,6 +640,7 @@ export default function AdminOrdersPage() {
                     <SelectItem value="waiting">Menunggu</SelectItem>
                     <SelectItem value="on_progress">Diproses</SelectItem>
                     <SelectItem value="completed">Selesai</SelectItem>
+                    <SelectItem value="returned">Return</SelectItem>
                     <SelectItem value="cancelled">Dibatalkan</SelectItem>
                   </SelectContent>
                 </Select>
@@ -629,8 +724,159 @@ export default function AdminOrdersPage() {
               </div>
             </div>
 
+            {editForm.status === "completed" && selectedOrder && (
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm text-zinc-900 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  Pengaturan Garansi
+                </h3>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="warranty_duration" className="text-right">
+                    Durasi (hari)
+                  </Label>
+                  <Input
+                    id="warranty_duration"
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="col-span-3"
+                    value={warrantyForm.duration_days}
+                    onChange={(e) =>
+                      setWarrantyForm((prev) => ({
+                        ...prev,
+                        duration_days: Math.max(1, parseInt(e.target.value) || 1),
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="warranty_desc" className="text-right mt-2">
+                    Deskripsi
+                  </Label>
+                  <Textarea
+                    id="warranty_desc"
+                    className="col-span-3 min-h-[90px]"
+                    value={warrantyForm.description}
+                    onChange={(e) =>
+                      setWarrantyForm((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                {warrantyInfo && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-xs font-medium text-emerald-900">
+                      Garansi aktif hingga{" "}
+                      {format(new Date(warrantyInfo.expires_at), "dd MMM yyyy", {
+                        locale: idLocale,
+                      })}
+                    </p>
+                    <p className="text-xs text-emerald-700 mt-1">
+                      Last update:{" "}
+                      {format(new Date(warrantyInfo.updated_at), "dd MMM yyyy, HH:mm", {
+                        locale: idLocale,
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {claims.length > 0 && (
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm text-zinc-900">
+                  Daftar Klaim Garansi ({claims.length})
+                </h3>
+
+                <div className="space-y-3">
+                  {claims.map((claim) => (
+                    <div
+                      key={claim.claim_id}
+                      className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-zinc-500">
+                            Klaim #{claim.claim_id}
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            Dikirim{" "}
+                            {format(new Date(claim.created_at), "dd MMM yyyy, HH:mm", {
+                              locale: idLocale,
+                            })}
+                          </p>
+                        </div>
+                        <StatusBadge status={claim.status} />
+                      </div>
+
+                      <p className="text-sm text-zinc-700">{claim.description}</p>
+
+                      {claim.photo && (
+                        <img
+                          src={claim.photo}
+                          alt="Foto klaim"
+                          className="h-32 rounded-md border border-zinc-200 object-cover"
+                        />
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`claim-note-${claim.claim_id}`}>
+                          Catatan Admin
+                        </Label>
+                        <Textarea
+                          id={`claim-note-${claim.claim_id}`}
+                          className="min-h-[70px]"
+                          value={claimNotes[claim.claim_id] || ""}
+                          onChange={(e) =>
+                            setClaimNotes((prev) => ({
+                              ...prev,
+                              [claim.claim_id]: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {claimStatusOptions.map((statusOption) => (
+                          <Button
+                            key={statusOption.value}
+                            type="button"
+                            size="sm"
+                            variant={
+                              claim.status === statusOption.value
+                                ? "default"
+                                : "outline"
+                            }
+                            disabled={updatingClaimId === claim.claim_id}
+                            className={
+                              claim.status === statusOption.value
+                                ? "bg-blue-900 hover:bg-blue-950"
+                                : "bg-white"
+                            }
+                            onClick={() =>
+                              handleUpdateClaimStatus(
+                                claim.claim_id,
+                                statusOption.value,
+                              )
+                            }
+                          >
+                            {statusOption.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Payment Section - Only show for completed orders */}
-            {selectedOrder?.status === "completed" && (
+            {editForm.status === "completed" && selectedOrder && (
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="font-semibold text-sm text-zinc-900 flex items-center gap-2">
                   <CreditCard className="w-4 h-4" />
