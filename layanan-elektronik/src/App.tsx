@@ -12,6 +12,8 @@ import CreateOrderPage from "./pages/CreateOrderPage";
 import AdminOrdersPage from "./pages/AdminOrdersPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminReportsPage from "./pages/AdminReportsPage";
+import AdminPaymentsPage from "./pages/AdminPaymentsPage";
+import AdminTestimonialsPage from "./pages/AdminTestimonialsPage";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -30,8 +32,13 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
             <Route path="/admin/orders" element={<AdminOrdersPage />} />
+            <Route path="/admin/payments" element={<AdminPaymentsPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
             <Route path="/admin/reports" element={<AdminReportsPage />} />
+            <Route
+              path="/admin/testimonials"
+              element={<AdminTestimonialsPage />}
+            />
             <Route path="/settings" element={<ProfilePage />} />
             <Route path="/profile" element={<ProfilePage />} />
 

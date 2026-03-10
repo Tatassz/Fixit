@@ -20,6 +20,14 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     on_progress: { label: "Diproses", className: "bg-blue-600 border-transparent text-primary-foreground hover:bg-blue-600/80" },
     completed: { label: "Selesai", className: "bg-green-600 border-transparent text-primary-foreground hover:bg-green-600/80" },
     cancelled: { label: "Dibatalkan", className: "bg-red-600 border-transparent text-primary-foreground hover:bg-red-600/80" },
+    returned: { label: "Return", className: "bg-orange-600 border-transparent text-primary-foreground hover:bg-orange-600/80" },
+
+    // Warranty claim status
+    submitted: { label: "Klaim Masuk", className: "bg-blue-600 border-transparent text-primary-foreground hover:bg-blue-600/80" },
+    in_review: { label: "Ditinjau", className: "bg-indigo-600 border-transparent text-primary-foreground hover:bg-indigo-600/80" },
+    approved: { label: "Disetujui", className: "bg-green-600 border-transparent text-primary-foreground hover:bg-green-600/80" },
+    rejected: { label: "Ditolak", className: "bg-red-600 border-transparent text-primary-foreground hover:bg-red-600/80" },
+    resolved: { label: "Selesai Ditangani", className: "bg-emerald-700 border-transparent text-primary-foreground hover:bg-emerald-700/80" },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

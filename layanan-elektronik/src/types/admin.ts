@@ -15,6 +15,7 @@ export interface ReportData {
     on_progress: number;
     waiting: number;
     cancelled: number;
+    returned?: number;
   };
   total_revenue: number;
   revenue_by_service: Array<{

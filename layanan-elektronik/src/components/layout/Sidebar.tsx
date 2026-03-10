@@ -7,6 +7,7 @@ import {
     Users,
     CreditCard,
     FileText,
+    Star,
     Settings,
     X,
     ChevronLeft,
@@ -73,9 +74,21 @@ const navItems: NavItem[] = [
         roles: ["admin"],
     },
     {
+        title: "List Pembayaran",
+        href: "/admin/payments",
+        icon: CreditCard,
+        roles: ["admin"],
+    },
+    {
         title: "Laporan",
         href: "/admin/reports",
         icon: FileText,
+        roles: ["admin"],
+    },
+    {
+        title: "Testimoni",
+        href: "/admin/testimonials",
+        icon: Star,
         roles: ["admin"],
     },
     {
